@@ -60,24 +60,26 @@ app.get('/api/users',(req,res)=>{
 })
 
 app.post('/api/users/:userId/exercises',(req,res)=>{
-
+  const date = req.body.date===''? new Date:req.body.date
+  console.log(date)
   const newEx = new Excercise({
-    username : req.body[':_id'],
+    username : req.params.userId || req.body[':_id'],
     description : req.body.description,
     duration : req.body.duration,
-    date : req.body.date==''? new Date():new Date(req.body.date)
+    date : date
   })
   newEx.save().then((data)=>{
     User.findOne({_id:data.username}).lean().exec().then((name)=>{
       data = data.toObject()
+      data._id= name._id;
       data.username = name.username;
       data.__v = undefined;
       data.date = data.date.toDateString()      
       return res.json(data)
-    })
+    }).catch(err=>console.log(err))
     
     
-  }).catch(err=>console.log(err))
+  }).catch((err)=>console.log(err))
 })
 
 app.get('/api/users/:userId/logs',(req,res)=>{
@@ -88,7 +90,7 @@ app.get('/api/users/:userId/logs',(req,res)=>{
 
   Excercise.countDocuments({username:userId}).then((count)=>{
       Excercise.find({
-    uername:userId,
+    username:userId,
     function (){
       if(from !== 0){
         return {
@@ -100,11 +102,20 @@ app.get('/api/users/:userId/logs',(req,res)=>{
       }
       return '';
     }
-  }).limit().select('-username').exec((err,log)=>{
+  }).limit(limit).select('-id').exec((err,log)=>{
+        let logData=[];
+        for(obj of log){
+          obj = obj.toObject()
+          obj.date= obj.date.toDateString()
+          logData.push(obj)
+        }
+        
+        if(err) console.log(err);
     User.find({_id:userId}).exec((err,data)=>{
+      if(err) console.log(err);
       data= data[0].toObject();
       data.count = count;
-      data.log = log;
+      data.log = logData;
       res.json(data)
     })
       
