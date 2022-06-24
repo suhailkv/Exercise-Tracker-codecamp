@@ -60,6 +60,7 @@ app.get('/api/users',(req,res)=>{
 })
 
 app.post('/api/users/:userId/exercises',(req,res)=>{
+  
   const date = req.body.date===''? new Date:req.body.date
   console.log(date)
   const newEx = new Excercise({
@@ -82,46 +83,46 @@ app.post('/api/users/:userId/exercises',(req,res)=>{
   }).catch((err)=>console.log(err))
 })
 
-app.get('/api/users/:userId/logs',(req,res)=>{
+app.get('/api/users/:userId/logs',async(req,res)=>{
+
+  console.log(req.query.from,req.query.to,req.query.limit)
+  
   const userId = req.params.userId;
-  const from = new Date(req.query.from) || 0;
-  const to = req.query.to || 0 ;
+  const from = req.query.from === undefined ? new Date('0001-01-01'):new Date(req.query.from)
+  const to = req.query.to ===undefined ?  new Date('9999-01-01'):new Date(req.query.to)
+
   const limit = parseInt(req.query.limit) || 0;
 
-  Excercise.countDocuments({username:userId}).then((count)=>{
-      Excercise.find({
-    username:userId,
-    function (){
-      if(from !== 0){
-        return {
-          date:{
-            $gt:from,
-            $lt:to
-          }
-        }
-      }
-      return '';
-    }
-  }).limit(limit).select('-id').exec((err,log)=>{
-        let logData=[];
-        for(obj of log){
-          obj = obj.toObject()
-          obj.date= obj.date.toDateString()
-          logData.push(obj)
-        }
-        
-        if(err) console.log(err);
-    User.find({_id:userId}).exec((err,data)=>{
-      if(err) console.log(err);
-      data= data[0].toObject();
-      data.count = count;
-      data.log = logData;
-      res.json(data)
-    })
-      
-    
+  let user = await User.find({_id:userId});
+  if(!user){
+    return console.log(Error)
+  }
+  let excercise = await Excercise.find({username:userId}).where('date').gte(from).lte(to).limit(limit);
+  if(!excercise){
+    return console.log(Error)
+  }
+  let log=[]
+  
+  excercise.filter(obj=>{
+    obj = obj.toObject();
+    obj.date=obj.date.toDateString();
+    obj._id = undefined;
+    obj.username = undefined;
+    obj.__v = undefined;
+    log.push(obj)
   })
-  }).catch(err=>console.log(err))
+
+  
+  user = user[0].toObject();
+  user.count = log.length;
+  user.log= log
+  user.__v = undefined
+  user.from = req.query.from === undefined ? undefined :new Date(req.query.from).toDateString()
+  user.to = req.query.to === undefined ? undefined :new Date(req.query.to).toDateString()
+  
+  
+  return res.json(user);
+ 
 
 })
 
